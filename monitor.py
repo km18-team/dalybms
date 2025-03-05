@@ -24,41 +24,59 @@ BASE_TOPIC = os.environ['MQTT_DISCOVERY_PREFIX'] + '/sensor/'
 STATE_TOPIC = BASE_TOPIC + devId
 STATUS_TOPIC = STATE_TOPIC + '_status'
 deviceConf = '"device": {"manufacturer": "Dongfuan Daly Electronics", "name": "Smart BMS", "identifiers": ["' + devId + '"]}'
-# publish MQTT Discovery configs to Home Assistant
+
+# 1. Battery SOC
 socHaConf = '{"device_class": "battery", "name": "Battery SOC", "state_topic": "' + STATE_TOPIC +'/state", "unit_of_measurement": "%", "value_template": "{{ value_json.soc}}", "unique_id": "' + devId + '_soc", ' + deviceConf + ', "json_attributes_topic": "' + STATUS_TOPIC + '/state"}'
 client.publish(STATE_TOPIC +'_soc/config', socHaConf, 0, True)
-voltageHaConf = '{"device_class": "voltage", "name": "Battery Voltage", "state_topic": "' + STATE_TOPIC +'/state", "unit_of_measurement": "V", "value_template": "{{ value_json.voltage}}", "unique_id": "' + devId + '_voltage", ' + deviceConf + '}'
-client.publish(STATE_TOPIC + '_voltage/config', voltageHaConf, 0, True)
-currentHaConf = '{"device_class": "current", "name": "Battery Current", "state_topic": "' + STATE_TOPIC +'/state", "unit_of_measurement": "A", "value_template": "{{ value_json.current}}", "unique_id": "' + devId + '_current", ' + deviceConf + '}'
-client.publish(STATE_TOPIC + '_current/config', currentHaConf, 0, True)
 
-CELLS_TOPIC = STATE_TOPIC + '_balance'
-cellsHaConf = '{"device_class": "voltage", "name": "Battery Cell Balance", "state_topic": "' + CELLS_TOPIC + '/state", "unit_of_measurement": "V", "value_template": "{{ value_json.diff}}", "json_attributes_topic": "' + CELLS_TOPIC + '/state", "unique_id": "' + devId + '_balance", ' + deviceConf + '}'
-client.publish(CELLS_TOPIC + '/config', cellsHaConf, 0, True)
-
-TEMP_TOPIC = STATE_TOPIC + '_temp'
-tempHaConf = '{"device_class": "temperature", "name": "Battery Temperature", "state_topic": "' + TEMP_TOPIC + '/state", "unit_of_measurement": "°C", "value_template": "{{ value_json.value}}", "unique_id": "' + devId + '_temp", ' + deviceConf + ', "json_attributes_topic": "' + TEMP_TOPIC + '/state"}'
-client.publish(TEMP_TOPIC + '/config', tempHaConf, 0, True)
-
-MOS_TOPIC = STATE_TOPIC + '_mos'
-mosHaConf = '{"name": "MOS status", "state_topic": "' + MOS_TOPIC + '/state", "value_template": "{{ value_json.value}}", "unique_id": "' + devId + '_mos", ' + deviceConf + ', "json_attributes_topic": "' + MOS_TOPIC + '/state"}'
-client.publish(MOS_TOPIC + '/config', mosHaConf, 0, True)
-
-CHARGE_STATUS_TOPIC = STATE_TOPIC + '_charge_status'
-chargeStatusHaConf = '{"device_class": "enum", "name": "Battery Charging Status", "state_topic": "' + CHARGE_STATUS_TOPIC + '/state", "value_template": "{{ value_json.status }}", "options": ["idle", "charging", "discharging"], "unique_id": "' + devId + '_charge_status", ' + deviceConf + '}'
-client.publish(CHARGE_STATUS_TOPIC + '/config', chargeStatusHaConf, 0, True)
-
-CAPACITY_TOPIC = STATE_TOPIC + '_capacity'
-capacityHaConf = '{"device_class": "energy", "name": "Battery Residual Capacity", "state_topic": "' + CAPACITY_TOPIC + '/state", "unit_of_measurement": "mAh", "value_template": "{{ value_json.capacity }}", "unique_id": "' + devId + '_capacity", ' + deviceConf + '}'
-client.publish(CAPACITY_TOPIC + '/config', capacityHaConf, 0, True)
-
+# 2. Battery Cycles
 CYCLES_TOPIC = STATE_TOPIC + '_cycles'
 cyclesHaConf = '{"name": "Battery Cycles", "state_topic": "' + CYCLES_TOPIC + '/state", "unit_of_measurement": "cycles", "value_template": "{{ value_json.cycles }}", "unique_id": "' + devId + '_cycles", ' + deviceConf + '}'
 client.publish(CYCLES_TOPIC + '/config', cyclesHaConf, 0, True)
 
+# 3. Residual Capacity
+CAPACITY_TOPIC = STATE_TOPIC + '_capacity'
+capacityHaConf = '{"device_class": "energy", "name": "Battery Residual Capacity", "state_topic": "' + CAPACITY_TOPIC + '/state", "unit_of_measurement": "mAh", "value_template": "{{ value_json.capacity }}", "unique_id": "' + devId + '_capacity", ' + deviceConf + '}'
+client.publish(CAPACITY_TOPIC + '/config', capacityHaConf, 0, True)
+
+# 4. Charging Status
+CHARGE_STATUS_TOPIC = STATE_TOPIC + '_charge_status'
+chargeStatusHaConf = '{"device_class": "enum", "name": "Battery Charging Status", "state_topic": "' + CHARGE_STATUS_TOPIC + '/state", "value_template": "{{ value_json.status }}", "options": ["idle", "charging", "discharging"], "unique_id": "' + devId + '_charge_status", ' + deviceConf + '}'
+client.publish(CHARGE_STATUS_TOPIC + '/config', chargeStatusHaConf, 0, True)
+
+# 5. Battery Voltage
+voltageHaConf = '{"device_class": "voltage", "name": "Battery Voltage", "state_topic": "' + STATE_TOPIC +'/state", "unit_of_measurement": "V", "value_template": "{{ value_json.voltage}}", "unique_id": "' + devId + '_voltage", ' + deviceConf + '}'
+client.publish(STATE_TOPIC + '_voltage/config', voltageHaConf, 0, True)
+
+# 6. Battery Current
+currentHaConf = '{"device_class": "current", "name": "Battery Current", "state_topic": "' + STATE_TOPIC +'/state", "unit_of_measurement": "A", "value_template": "{{ value_json.current}}", "unique_id": "' + devId + '_current", ' + deviceConf + '}'
+client.publish(STATE_TOPIC + '_current/config', currentHaConf, 0, True)
+
+# 7. Battery Temperature
+TEMP_TOPIC = STATE_TOPIC + '_temp'
+tempHaConf = '{"device_class": "temperature", "name": "Battery Temperature", "state_topic": "' + TEMP_TOPIC + '/state", "unit_of_measurement": "°C", "value_template": "{{ value_json.value}}", "unique_id": "' + devId + '_temp", ' + deviceConf + ', "json_attributes_topic": "' + TEMP_TOPIC + '/state"}'
+client.publish(TEMP_TOPIC + '/config', tempHaConf, 0, True)
+
+# The following are extra sensors that weren't in your specified order but I'll keep them for completeness
+# 8. BMS Life Cycles
+BMS_LIFE_TOPIC = STATE_TOPIC + '_bms_life'
+bmsLifeHaConf = '{"name": "BMS Life Cycles", "state_topic": "' + BMS_LIFE_TOPIC + '/state", "unit_of_measurement": "cycles", "value_template": "{{ value_json.life }}", "unique_id": "' + devId + '_bms_life", ' + deviceConf + '}'
+client.publish(BMS_LIFE_TOPIC + '/config', bmsLifeHaConf, 0, True)
+
+# 9. Number of Temperature Sensors
 BMS_TEMP_TOPIC = STATE_TOPIC + '_bms_temp'
-bmsTemperatureHaConf = '{"device_class": "temperature", "name": "BMS Temperature", "state_topic": "' + BMS_TEMP_TOPIC + '/state", "unit_of_measurement": "°C", "value_template": "{{ value_json.temperature }}", "unique_id": "' + devId + '_bms_temp", ' + deviceConf + '}'
+bmsTemperatureHaConf = '{"name": "Temperature Sensors Count", "state_topic": "' + BMS_TEMP_TOPIC + '/state", "value_template": "{{ value_json.temperature }}", "unique_id": "' + devId + '_bms_temp", ' + deviceConf + '}'
 client.publish(BMS_TEMP_TOPIC + '/config', bmsTemperatureHaConf, 0, True)
+
+# 10. MOS Status
+MOS_TOPIC = STATE_TOPIC + '_mos'
+mosHaConf = '{"name": "MOS status", "state_topic": "' + MOS_TOPIC + '/state", "value_template": "{{ value_json.value}}", "unique_id": "' + devId + '_mos", ' + deviceConf + ', "json_attributes_topic": "' + MOS_TOPIC + '/state"}'
+client.publish(MOS_TOPIC + '/config', mosHaConf, 0, True)
+
+# 11. Cell Balance
+CELLS_TOPIC = STATE_TOPIC + '_balance'
+cellsHaConf = '{"device_class": "voltage", "name": "Battery Cell Balance", "state_topic": "' + CELLS_TOPIC + '/state", "unit_of_measurement": "V", "value_template": "{{ value_json.diff}}", "json_attributes_topic": "' + CELLS_TOPIC + '/state", "unique_id": "' + devId + '_balance", ' + deviceConf + '}'
+client.publish(CELLS_TOPIC + '/config', cellsHaConf, 0, True)
 
 def cmd(command):
     res = []
