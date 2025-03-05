@@ -197,7 +197,7 @@ def get_battery_mos_status():
     publish(CAPACITY_TOPIC + '/state', capacityJson)
 
 while True:
-    get_battery_state()
+    get_battery_status()
     get_cell_balance(int(os.environ['CELL_COUNT']))
     get_battery_status()
     get_battery_temp()
