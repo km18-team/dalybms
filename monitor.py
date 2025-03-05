@@ -70,12 +70,12 @@ client.publish(MOS_TOPIC + '/config', mosHaConf, 0, True)
 # Diagnostic entities - using the correct ent_cat format
 # Residual Capacity in mAh - Diagnostic entity
 CAPACITY_TOPIC = STATE_TOPIC + '_capacity'
-capacityHaConf = '{"ent_cat": "diagnostic", "device_class": "energy", "name": "Battery Residual Capacity", "state_topic": "' + CAPACITY_TOPIC + '/state", "unit_of_measurement": "mAh", "value_template": "{{ value_json.capacity }}", "unique_id": "' + devId + '_capacity", ' + deviceConf + '}'
+capacityHaConf = '{"entity_category": "diagnostic", "device_class": "energy", "name": "Battery Residual Capacity", "state_topic": "' + CAPACITY_TOPIC + '/state", "unit_of_measurement": "mAh", "value_template": "{{ value_json.capacity }}", "unique_id": "' + devId + '_capacity", ' + deviceConf + '}'
 client.publish(CAPACITY_TOPIC + '/config', capacityHaConf, 0, True)
 
 # Number of Temperature Sensors - Diagnostic entity
 BMS_TEMP_TOPIC = STATE_TOPIC + '_bms_temp'
-bmsTemperatureHaConf = '{"ent_cat": "diagnostic", "name": "Temperature Sensors Count", "state_topic": "' + BMS_TEMP_TOPIC + '/state", "value_template": "{{ value_json.temperature }}", "unique_id": "' + devId + '_bms_temp", ' + deviceConf + '}'
+bmsTemperatureHaConf = '{"entity_category": "diagnostic", "name": "Temperature Sensors Count", "state_topic": "' + BMS_TEMP_TOPIC + '/state", "value_template": "{{ value_json.temperature }}", "unique_id": "' + devId + '_bms_temp", ' + deviceConf + '}'
 client.publish(BMS_TEMP_TOPIC + '/config', bmsTemperatureHaConf, 0, True)
 
 # First, add the configuration for the new Wh sensor
@@ -85,7 +85,7 @@ client.publish(ENERGY_TOPIC + '/config', energyHaConf, 0, True)
 
 # Cell Balance (Voltage Delta) - Diagnostic entity
 CELLS_TOPIC = STATE_TOPIC + '_balance'
-cellsHaConf = '{"ent_cat": "diagnostic", "device_class": "voltage", "name": "Battery Cell Balance", "state_topic": "' + CELLS_TOPIC + '/state", "unit_of_measurement": "V", "value_template": "{{ value_json.diff}}", "json_attributes_topic": "' + CELLS_TOPIC + '/state", "unique_id": "' + devId + '_balance", ' + deviceConf + '}'
+cellsHaConf = '{"entity_category": "diagnostic", "device_class": "voltage", "name": "Battery Cell Balance", "state_topic": "' + CELLS_TOPIC + '/state", "unit_of_measurement": "V", "value_template": "{{ value_json.diff}}", "json_attributes_topic": "' + CELLS_TOPIC + '/state", "unique_id": "' + devId + '_balance", ' + deviceConf + '}'
 client.publish(CELLS_TOPIC + '/config', cellsHaConf, 0, True)
 
 current_voltage = 0
