@@ -48,6 +48,10 @@ CHARGE_STATUS_TOPIC = STATE_TOPIC + '_charge_status'
 chargeStatusHaConf = '{"device_class": "enum", "name": "Battery Charging Status", "state_topic": "' + CHARGE_STATUS_TOPIC + '/state", "value_template": "{{ value_json.status }}", "options": ["idle", "charging", "discharging"], "unique_id": "' + devId + '_charge_status", ' + deviceConf + '}'
 client.publish(CHARGE_STATUS_TOPIC + '/config', chargeStatusHaConf, 0, True)
 
+CAPACITY_TOPIC = STATE_TOPIC + '_capacity'
+capacityHaConf = '{"device_class": "energy", "name": "Battery Residual Capacity", "state_topic": "' + CAPACITY_TOPIC + '/state", "unit_of_measurement": "mAh", "value_template": "{{ value_json.capacity }}", "unique_id": "' + devId + '_capacity", ' + deviceConf + '}'
+client.publish(CAPACITY_TOPIC + '/config', capacityHaConf, 0, True)
+
 def cmd(command):
     res = []
     ser.write(command)
