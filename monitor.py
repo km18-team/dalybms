@@ -92,19 +92,29 @@ current_voltage = 0
 residual_capacity_mah = 0
 
 def cmd(command):
-    res = []
-    ser.write(command)
-    while True:
-        s = ser.read(13)
-        if (s == b''):
-            break
-        # print(binascii.hexlify(s, ' '))
-        res.append(s)
-    return res
+    try:
+        res = []
+        ser.write(command)
+        while True:
+            s = ser.read(13)
+            if (s == b''):
+                break
+            res.append(s)
+        return res
+    except serial.SerialException as e:
+        print(f"Serial communication error: {e}")
+        time.sleep(5)  # Wait before retrying
+        return []
 
 def publish(topic, data):
     try:
         client.publish(topic, data, 0, False)
+    except Exception as e:
+        print("Error sending to mqtt: " + str(e))
+
+def publish_json(topic, data_dict):
+    try:
+        client.publish(topic, json.dumps(data_dict), 0, False)
     except Exception as e:
         print("Error sending to mqtt: " + str(e))
 
@@ -179,26 +189,71 @@ def get_battery_state():
         energyJson = '{"energy":' + str(energy_wh) + '}'
         publish(ENERGY_TOPIC + '/state', energyJson)
 
-def get_battery_temp():
+def get_battery_temperature():
+    # Try the detailed monomer temperature first (preferred method)
+    res = cmd(b'\xa5\x40\x96\x08\x00\x00\x00\x00\x00\x00\x00\x00\x83')
+
+    if len(res) >= 1:
+        # Process temperature data from all response frames
+        temps = []
+        for frame in res:
+            # Skip the first byte which is the frame number
+            for i in range(1, len(frame) - 5):  # -5 to avoid reading past the data bytes
+                temp_value = int.from_bytes(frame[4+i:5+i], byteorder='big', signed=False) - 40
+                if -40 <= temp_value <= 100:  # Basic sanity check for temperature range
+                    temps.append(temp_value)
+
+        if temps:
+            # Calculate average temperature
+            avg_temp = sum(temps) / len(temps)
+
+            json = '{'
+            json += '"value":' + str(round(avg_temp, 1)) + ','
+            json += '"count":' + str(len(temps)) + ','
+
+            # Add individual temperature values
+            for i, temp in enumerate(temps):
+                json += '"temp_' + str(i+1) + '":' + str(temp) + ','
+
+            # Add min and max temperatures
+            min_temp = min(temps)
+            max_temp = max(temps)
+            json += '"min":' + str(min_temp) + ','
+            json += '"max":' + str(max_temp)
+
+            json += '}'
+            publish(TEMP_TOPIC + '/state', json)
+            return True
+
+    # Fallback to basic temperature method if detailed method failed
     res = cmd(b'\xa5\x40\x92\x08\x00\x00\x00\x00\x00\x00\x00\x00\x7f')
     if len(res) < 1:
-        print('Empty response get_battery_temp')
-        return
+        print('Empty response for temperature data')
+        return False
+
     buffer = res[0]
     maxTemp = int.from_bytes(buffer[4:5], byteorder='big', signed=False) - 40
     maxTempCell = int.from_bytes(buffer[5:6], byteorder='big', signed=False)
     minTemp = int.from_bytes(buffer[6:7], byteorder='big', signed=False) - 40
     minTempCell = int.from_bytes(buffer[7:8], byteorder='big', signed=False)
 
+    # Sanity check
+    if not (-40 <= maxTemp <= 100 and -40 <= minTemp <= 100):
+        print(f'Invalid temperature data: max={maxTemp}, min={minTemp}')
+        return False
+
+    avg_temp = (maxTemp + minTemp) / 2
+
     json = '{'
-    json += '"value":' + str((maxTemp + minTemp) / 2) + ','
+    json += '"value":' + str(avg_temp) + ','
     json += '"maxTemp":' + str(maxTemp) + ','
     json += '"maxTempCell":' + str(maxTempCell) + ','
     json += '"minTemp":' + str(minTemp) + ','
     json += '"minTempCell":' + str(minTempCell)
     json += '}'
-    # print(json)
-    publish(TEMP_TOPIC +'/state', json)
+
+    publish(TEMP_TOPIC + '/state', json)
+    return True
 
 def get_battery_mos_status():
     global residual_capacity_mah, current_voltage
@@ -243,52 +298,16 @@ def get_battery_mos_status():
         energyJson = '{"energy":' + str(energy_wh) + '}'
         publish(ENERGY_TOPIC + '/state', energyJson)
 
-def get_monomer_temperature():
-    res = cmd(b'\xa5\x40\x96\x08\x00\x00\x00\x00\x00\x00\x00\x00\x83')
-    if len(res) < 1:
-        print('Empty response get_monomer_temperature')
-        return
-
-    # Process temperature data from all response frames
-    temps = []
-    for frame in res:
-        # Skip the first byte which is the frame number
-        for i in range(1, len(frame) - 5):  # -5 to avoid reading past the data bytes
-            temp_value = int.from_bytes(frame[4+i:5+i], byteorder='big', signed=False) - 40
-            temps.append(temp_value)
-
-    if not temps:
-        print('No temperature data found')
-        return
-
-    # Calculate average temperature
-    avg_temp = sum(temps) / len(temps)
-
-    json = '{'
-    json += '"value":' + str(round(avg_temp, 1)) + ','
-    json += '"count":' + str(len(temps)) + ','
-
-    # Add individual temperature values
-    for i, temp in enumerate(temps):
-        json += '"temp_' + str(i+1) + '":' + str(temp) + ','
-
-    # Add min and max temperatures
-    min_temp = min(temps)
-    max_temp = max(temps)
-    json += '"min":' + str(min_temp) + ','
-    json += '"max":' + str(max_temp)
-
-    json += '}'
-    # print(json)
-    publish(TEMP_TOPIC + '/state', json)
-
 while True:
-    get_battery_state()
-    get_cell_balance(int(os.environ['CELL_COUNT']))
-    get_monomer_temperature()  # New function to get temperature data
-    get_battery_temp()  # Keep the old function for compatibility
-    get_battery_mos_status()
-    time.sleep(1)
+    try:
+        get_battery_state()
+        get_cell_balance(int(os.environ['CELL_COUNT']))
+        get_battery_temperature()  # New consolidated function
+        get_battery_mos_status()
+        time.sleep(5)  # Increased polling interval to reduce load
+    except Exception as e:
+        print(f"Error in main loop: {e}")
+        time.sleep(10)  # Wait longer after an error
 
 ser.close()
 print('done')
