@@ -52,7 +52,7 @@ client.publish(STATE_TOPIC + '_voltage/config', voltageHaConf, 0, True)
 currentHaConf = '{"device_class": "current", "name": "Battery Current", "state_topic": "' + STATE_TOPIC +'/state", "unit_of_measurement": "A", "value_template": "{{ value_json.current}}", "unique_id": "' + devId + '_current", ' + deviceConf + '}'
 client.publish(STATE_TOPIC + '_current/config', currentHaConf, 0, True)
 
-# 7. Battery Temperature - Regular entity
+# 7. Battery Temperature - uses data from monomer temperature command
 TEMP_TOPIC = STATE_TOPIC + '_temp'
 tempHaConf = '{"device_class": "temperature", "name": "Battery Temperature", "state_topic": "' + TEMP_TOPIC + '/state", "unit_of_measurement": "°C", "value_template": "{{ value_json.value}}", "unique_id": "' + devId + '_temp", ' + deviceConf + ', "json_attributes_topic": "' + TEMP_TOPIC + '/state"}'
 client.publish(TEMP_TOPIC + '/config', tempHaConf, 0, True)
@@ -229,11 +229,51 @@ def get_battery_mos_status():
         energyJson = '{"energy":' + str(energy_wh) + '}'
         publish(ENERGY_TOPIC + '/state', energyJson)
 
+def get_monomer_temperature():
+    res = cmd(b'\xa5\x40\x96\x08\x00\x00\x00\x00\x00\x00\x00\x00\x83')
+    if len(res) < 1:
+        print('Empty response get_monomer_temperature')
+        return
+
+    # Process temperature data from all response frames
+    temps = []
+    for frame in res:
+        # Skip the first byte which is the frame number
+        for i in range(1, len(frame) - 5):  # -5 to avoid reading past the data bytes
+            temp_value = int.from_bytes(frame[4+i:5+i], byteorder='big', signed=False) - 40
+            temps.append(temp_value)
+
+    if not temps:
+        print('No temperature data found')
+        return
+
+    # Calculate average temperature
+    avg_temp = sum(temps) / len(temps)
+
+    json = '{'
+    json += '"value":' + str(round(avg_temp, 1)) + ','
+    json += '"count":' + str(len(temps)) + ','
+
+    # Add individual temperature values
+    for i, temp in enumerate(temps):
+        json += '"temp_' + str(i+1) + '":' + str(temp) + ','
+
+    # Add min and max temperatures
+    min_temp = min(temps)
+    max_temp = max(temps)
+    json += '"min":' + str(min_temp) + ','
+    json += '"max":' + str(max_temp)
+
+    json += '}'
+    # print(json)
+    publish(TEMP_TOPIC + '/state', json)
+
 while True:
     get_battery_status()
     get_cell_balance(int(os.environ['CELL_COUNT']))
     get_battery_status()
-    get_battery_temp()
+    get_monomer_temperature()  # New function to get temperature data
+    get_battery_temp()  # Keep the old function for compatibility
     get_battery_mos_status()
     time.sleep(1)
 
