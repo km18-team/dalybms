@@ -7,6 +7,7 @@ import serial
 import time
 import os
 import paho.mqtt.client as mqtt
+import json
 
 print('Starting BMS monitor...')
 
@@ -61,7 +62,7 @@ BMS_LIFE_TOPIC = STATE_TOPIC + '_bms_life'
 bmsLifeHaConf = '{"name": "BMS Life Cycles", "state_topic": "' + BMS_LIFE_TOPIC + '/state", "unit_of_measurement": "cycles", "value_template": "{{ value_json.life }}", "unique_id": "' + devId + '_bms_life", ' + deviceConf + '}'
 client.publish(BMS_LIFE_TOPIC + '/config', bmsLifeHaConf, 0, True)
 
-# 9. Number of Temperature Sensors - Diagnostic entity
+# Number of Temperature Sensors - Diagnostic entity
 BMS_TEMP_TOPIC = STATE_TOPIC + '_bms_temp'
 bmsTemperatureHaConf = '{"entity_category": "diagnostic", "name": "Temperature Sensors Count", "state_topic": "' + BMS_TEMP_TOPIC + '/state", "value_template": "{{ value_json.temperature }}", "unique_id": "' + devId + '_bms_temp", ' + deviceConf + '}'
 client.publish(BMS_TEMP_TOPIC + '/config', bmsTemperatureHaConf, 0, True)
@@ -71,15 +72,29 @@ MOS_TOPIC = STATE_TOPIC + '_mos'
 mosHaConf = '{"name": "MOS status", "state_topic": "' + MOS_TOPIC + '/state", "value_template": "{{ value_json.value}}", "unique_id": "' + devId + '_mos", ' + deviceConf + ', "json_attributes_topic": "' + MOS_TOPIC + '/state"}'
 client.publish(MOS_TOPIC + '/config', mosHaConf, 0, True)
 
-# 11. Cell Balance (Voltage Delta) - Diagnostic entity
+# Cell Balance (Voltage Delta) - Diagnostic entity
 CELLS_TOPIC = STATE_TOPIC + '_balance'
 cellsHaConf = '{"entity_category": "diagnostic", "device_class": "voltage", "name": "Battery Cell Balance", "state_topic": "' + CELLS_TOPIC + '/state", "unit_of_measurement": "V", "value_template": "{{ value_json.diff}}", "json_attributes_topic": "' + CELLS_TOPIC + '/state", "unique_id": "' + devId + '_balance", ' + deviceConf + '}'
 client.publish(CELLS_TOPIC + '/config', cellsHaConf, 0, True)
 
-# 3. Residual Capacity - Change to diagnostic entity
+# Diagnostic entities - ensure proper JSON formatting
+# Residual Capacity in mAh - Diagnostic entity
 CAPACITY_TOPIC = STATE_TOPIC + '_capacity'
-capacityHaConf = '{"entity_category": "diagnostic", "device_class": "energy", "name": "Battery Residual Capacity", "state_topic": "' + CAPACITY_TOPIC + '/state", "unit_of_measurement": "mAh", "value_template": "{{ value_json.capacity }}", "unique_id": "' + devId + '_capacity", ' + deviceConf + '}'
-client.publish(CAPACITY_TOPIC + '/config', capacityHaConf, 0, True)
+capacityHaConf = {
+    "entity_category": "diagnostic",
+    "device_class": "energy",
+    "name": "Battery Residual Capacity",
+    "state_topic": CAPACITY_TOPIC + '/state',
+    "unit_of_measurement": "mAh",
+    "value_template": "{{ value_json.capacity }}",
+    "unique_id": devId + '_capacity',
+    "device": {
+        "manufacturer": "Dongfuan Daly Electronics",
+        "name": "Smart BMS",
+        "identifiers": [devId]
+    }
+}
+client.publish(CAPACITY_TOPIC + '/config', json.dumps(capacityHaConf), 0, True)
 
 # First, add the configuration for the new Wh sensor
 ENERGY_TOPIC = STATE_TOPIC + '_energy'
@@ -212,7 +227,7 @@ def get_battery_mos_status():
     chargeStatusJson = '{"status":"' + value + '"}'
     publish(CHARGE_STATUS_TOPIC + '/state', chargeStatusJson)
 
-    # Publish the residual capacity as a separate sensor
+    # Publish the residual capacity as a separate sensor (now diagnostic)
     capacityJson = '{"capacity":' + str(residualCapacity) + '}'
     publish(CAPACITY_TOPIC + '/state', capacityJson)
 
