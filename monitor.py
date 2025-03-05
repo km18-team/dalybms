@@ -143,18 +143,26 @@ def get_cell_balance(cell_count):
     # print(json)
     publish(CELLS_TOPIC + '/state', json)
 
-def get_battery_status():
-    global current_voltage
+def get_battery_state():
+    global current_voltage, residual_capacity_mah
     res = cmd(b'\xa5\x40\x90\x08\x00\x00\x00\x00\x00\x00\x00\x00\x7d')
     if len(res) < 1:
         print('Empty response get_battery_state')
         return
     buffer = res[0]
-    voltage = int.from_bytes(buffer[4:6], byteorder='big', signed=False) / 10
+
+    # Extract values from correct byte positions
+    # The first 4 bytes are likely header/command bytes
+    voltage = int.from_bytes(buffer[4:6], byteorder='big', signed=False) / 10  # Bytes 0-1: Total voltage
     current_voltage = voltage  # Update the global voltage value
-    aquisition = int.from_bytes(buffer[6:8], byteorder='big', signed=False) / 10
-    current = int.from_bytes(buffer[8:10], byteorder='big', signed=False) / 10 - 3000
-    soc = int.from_bytes(buffer[10:12], byteorder='big', signed=False) / 10
+
+    aquisition = int.from_bytes(buffer[6:8], byteorder='big', signed=False) / 10  # Bytes 2-3: Acquisition voltage
+
+    # Current with offset of 30000
+    current = (int.from_bytes(buffer[8:10], byteorder='big', signed=False) - 30000) / 10  # Bytes 4-5: Current
+
+    # SOC in 0.1%
+    soc = int.from_bytes(buffer[10:12], byteorder='big', signed=False) / 10  # Bytes 6-7: SOC
 
     json = '{'
     json += '"voltage":' + str(voltage) + ','
@@ -164,6 +172,12 @@ def get_battery_status():
     json += '}'
     print(json)
     publish(STATE_TOPIC +'/state', json)
+
+    # Calculate and publish energy here too, as a fallback
+    if current_voltage > 0 and residual_capacity_mah > 0:
+        energy_wh = round((residual_capacity_mah * current_voltage) / 1000, 2)
+        energyJson = '{"energy":' + str(energy_wh) + '}'
+        publish(ENERGY_TOPIC + '/state', energyJson)
 
 def get_battery_temp():
     res = cmd(b'\xa5\x40\x92\x08\x00\x00\x00\x00\x00\x00\x00\x00\x7f')
@@ -269,9 +283,8 @@ def get_monomer_temperature():
     publish(TEMP_TOPIC + '/state', json)
 
 while True:
-    get_battery_status()
+    get_battery_state()
     get_cell_balance(int(os.environ['CELL_COUNT']))
-    get_battery_status()
     get_monomer_temperature()  # New function to get temperature data
     get_battery_temp()  # Keep the old function for compatibility
     get_battery_mos_status()
