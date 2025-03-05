@@ -190,39 +190,53 @@ def get_battery_state():
         publish(ENERGY_TOPIC + '/state', energyJson)
 
 def get_battery_temperature():
-    # Try the detailed monomer temperature first (preferred method)
     res = cmd(b'\xa5\x40\x96\x08\x00\x00\x00\x00\x00\x00\x00\x00\x83')
 
     if len(res) >= 1:
         # Process temperature data from all response frames
         temps = []
+
         for frame in res:
-            # Skip the first byte which is the frame number
-            for i in range(1, len(frame) - 5):  # -5 to avoid reading past the data bytes
-                temp_value = int.from_bytes(frame[4+i:5+i], byteorder='big', signed=False) - 40
-                if -40 <= temp_value <= 100:  # Basic sanity check for temperature range
-                    temps.append(temp_value)
+            if len(frame) < 5:  # Make sure we have enough data
+                continue
+
+            frame_num = int.from_bytes(frame[4:5], byteorder='big', signed=False)
+            print(f"Processing temperature frame {frame_num}")
+
+            # Byte1~byte7 (or less) contain the temperature values in this frame
+            # In our data structure, they start at index 5
+            for i in range(7):  # Maximum 7 temperature values per frame
+                if 5+i < len(frame):
+                    temp_value = int.from_bytes(frame[5+i:6+i], byteorder='big', signed=False) - 40
+
+                    # Apply sanity check
+                    if -40 <= temp_value <= 100:
+                        temps.append(temp_value)
+                        print(f"  Temp sensor {len(temps)}: {temp_value}°C")
+                    else:
+                        print(f"  Invalid temperature reading: {temp_value}°C")
 
         if temps:
             # Calculate average temperature
             avg_temp = sum(temps) / len(temps)
 
-            json = '{'
-            json += '"value":' + str(round(avg_temp, 1)) + ','
-            json += '"count":' + str(len(temps)) + ','
+            # Create temperature data object
+            temp_data = {
+                "value": round(avg_temp, 1),
+                "count": len(temps),
+                "min": min(temps),
+                "max": max(temps)
+            }
 
             # Add individual temperature values
             for i, temp in enumerate(temps):
-                json += '"temp_' + str(i+1) + '":' + str(temp) + ','
+                temp_data[f"temp_{i+1}"] = temp
 
-            # Add min and max temperatures
-            min_temp = min(temps)
-            max_temp = max(temps)
-            json += '"min":' + str(min_temp) + ','
-            json += '"max":' + str(max_temp)
+            # Publish as JSON
+            publish_json(TEMP_TOPIC + '/state', temp_data)
 
-            json += '}'
-            publish(TEMP_TOPIC + '/state', json)
+            # Also publish temperature count to the BMS temp topic
+            publish_json(BMS_TEMP_TOPIC + '/state', {"temperature": len(temps)})
             return True
 
     # Fallback to basic temperature method if detailed method failed
@@ -244,15 +258,15 @@ def get_battery_temperature():
 
     avg_temp = (maxTemp + minTemp) / 2
 
-    json = '{'
-    json += '"value":' + str(avg_temp) + ','
-    json += '"maxTemp":' + str(maxTemp) + ','
-    json += '"maxTempCell":' + str(maxTempCell) + ','
-    json += '"minTemp":' + str(minTemp) + ','
-    json += '"minTempCell":' + str(minTempCell)
-    json += '}'
+    temp_data = {
+        "value": avg_temp,
+        "maxTemp": maxTemp,
+        "maxTempCell": maxTempCell,
+        "minTemp": minTemp,
+        "minTempCell": minTempCell
+    }
 
-    publish(TEMP_TOPIC + '/state', json)
+    publish_json(TEMP_TOPIC + '/state', temp_data)
     return True
 
 def get_battery_mos_status():
@@ -283,14 +297,6 @@ def get_battery_mos_status():
     # Publish the charging status as a separate sensor
     chargeStatusJson = '{"status":"' + value + '"}'
     publish(CHARGE_STATUS_TOPIC + '/state', chargeStatusJson)
-
-    # Publish the residual capacity as a separate sensor (now diagnostic)
-    capacityJson = '{"capacity":' + str(residualCapacity) + '}'
-    publish(CAPACITY_TOPIC + '/state', capacityJson)
-
-    # Publish the BMS life cycles as a separate sensor
-    bmsLifeJson = '{"life":' + str(BMSLife) + '}'
-    publish(BMS_LIFE_TOPIC + '/state', bmsLifeJson)
 
     # Calculate and publish the energy in Wh
     if current_voltage > 0:  # Make sure we have a valid voltage
