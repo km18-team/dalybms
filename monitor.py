@@ -60,10 +60,6 @@ BMS_TEMP_TOPIC = STATE_TOPIC + '_bms_temp'
 bmsTemperatureHaConf = '{"device_class": "temperature", "name": "BMS Temperature", "state_topic": "' + BMS_TEMP_TOPIC + '/state", "unit_of_measurement": "°C", "value_template": "{{ value_json.temperature }}", "unique_id": "' + devId + '_bms_temp", ' + deviceConf + '}'
 client.publish(BMS_TEMP_TOPIC + '/config', bmsTemperatureHaConf, 0, True)
 
-BMS_LIFE_TOPIC = STATE_TOPIC + '_bms_life'
-bmsLifeHaConf = '{"name": "BMS Life Cycles", "state_topic": "' + BMS_LIFE_TOPIC + '/state", "unit_of_measurement": "cycles", "value_template": "{{ value_json.life }}", "unique_id": "' + devId + '_bms_life", ' + deviceConf + '}'
-client.publish(BMS_LIFE_TOPIC + '/config', bmsLifeHaConf, 0, True)
-
 def cmd(command):
     res = []
     ser.write(command)
@@ -116,41 +112,37 @@ def get_cell_balance(cell_count):
     # print(json)
     publish(CELLS_TOPIC + '/state', json)
 
-def get_battery_mos_status():
-    res = cmd(b'\xa5\x40\x93\x08\x00\x00\x00\x00\x00\x00\x00\x00\x80')
+def get_battery_status():
+    res = cmd(b'\xa5\x40\x94\x08\x00\x00\x00\x00\x00\x00\x00\x00\x81')
     if len(res) < 1:
-        print('Empty response get_battery_mos_status')
+        print('Empty response get_battery_status')
         return
     buffer = res[0]
-    valueByte = int.from_bytes(buffer[4:5], byteorder='big', signed=False)
-    value = 'discharging' if valueByte == 2 else ('charging' if valueByte == 1 else 'idle')
-    chargeMOS = int.from_bytes(buffer[5:6], byteorder='big', signed=False)
-    dischargeMOS = int.from_bytes(buffer[6:7], byteorder='big', signed=False)
-    # BMS life in cycles (0-255)
-    BMSLife = int.from_bytes(buffer[7:8], byteorder='big', signed=False)
-    residualCapacity = int.from_bytes(buffer[8:12], byteorder='big', signed=False)
+    batt_string = int.from_bytes(buffer[4:5], byteorder='big', signed=False)
+    # this temperature seems to be the number of temperature sensors
+    temp_sensors = int.from_bytes(buffer[5:6], byteorder='big', signed=False)
+    charger = 'true' if int.from_bytes(buffer[6:7], byteorder='big', signed=False) == 1 else 'false'
+    load = 'true' if int.from_bytes(buffer[7:8], byteorder='big', signed=False) == 1 else 'false'
+    # dido = buffer[8:9]
+    cycles = int.from_bytes(buffer[9:11], byteorder='big', signed=False)
 
     json = '{'
-    json += '"value":"' + value + '",'
-    json += '"chargingMOS":' + str(chargeMOS) + ','
-    json += '"dischargingMOS":' + str(dischargeMOS) + ','
-    json += '"BMSLife":' + str(BMSLife) + ','
-    json += '"residualCapacity":' + str(residualCapacity)
+    json += '"batt_string":' + str(batt_string) + ','
+    json += '"temp_sensors":' + str(temp_sensors) + ','
+    json += '"charger":' + charger + ','
+    json += '"load":' + load + ','
+    json += '"cycles":' + str(cycles)
     json += '}'
     # print(json)
-    publish(MOS_TOPIC +'/state', json)
+    publish(STATUS_TOPIC +'/state', json)
 
-    # Add this to publish the charging status as a separate sensor
-    chargeStatusJson = '{"status":"' + value + '"}'
-    publish(CHARGE_STATUS_TOPIC + '/state', chargeStatusJson)
+    # Add this to publish the cycles as a separate sensor
+    cyclesJson = '{"cycles":' + str(cycles) + '}'
+    publish(CYCLES_TOPIC + '/state', cyclesJson)
 
-    # Add this to publish the residual capacity as a separate sensor
-    capacityJson = '{"capacity":' + str(residualCapacity) + '}'
-    publish(CAPACITY_TOPIC + '/state', capacityJson)
-
-    # Add this to publish the BMS life cycles as a separate sensor
-    bmsLifeJson = '{"life":' + str(BMSLife) + '}'
-    publish(BMS_LIFE_TOPIC + '/state', bmsLifeJson)
+    # Add this to publish the number of temperature sensors
+    bmsTemperatureJson = '{"temperature":' + str(temp_sensors) + '}'
+    publish(BMS_TEMP_TOPIC + '/state', bmsTemperatureJson)
 
 def get_battery_temp():
     res = cmd(b'\xa5\x40\x92\x08\x00\x00\x00\x00\x00\x00\x00\x00\x7f')
@@ -203,10 +195,6 @@ def get_battery_mos_status():
     # Add this to publish the residual capacity as a separate sensor
     capacityJson = '{"capacity":' + str(residualCapacity) + '}'
     publish(CAPACITY_TOPIC + '/state', capacityJson)
-
-    # Add this to publish the BMS life cycles as a separate sensor
-    bmsLifeJson = '{"life":' + str(BMSLife) + '}'
-    publish(BMS_LIFE_TOPIC + '/state', bmsLifeJson)
 
 while True:
     get_battery_state()
