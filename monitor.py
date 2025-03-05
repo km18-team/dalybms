@@ -25,15 +25,15 @@ STATE_TOPIC = BASE_TOPIC + devId
 STATUS_TOPIC = STATE_TOPIC + '_status'
 deviceConf = '"device": {"manufacturer": "Dongfuan Daly Electronics", "name": "Smart BMS", "identifiers": ["' + devId + '"]}'
 # publish MQTT Discovery configs to Home Assistant
-socHaConf = '{"device_class": "battery", "name": "Battery SOC", "state_topic": "' + STATE_TOPIC +'/state", "unit_of_measurement": "%", "value_template": "{{ value_json.soc}}", "unique_id": "' + devId + '_soc", ' + deviceConf + ', "json_attributes_topic": "' + STATUS_TOPIC + '/state"}' 
+socHaConf = '{"device_class": "battery", "name": "Battery SOC", "state_topic": "' + STATE_TOPIC +'/state", "unit_of_measurement": "%", "value_template": "{{ value_json.soc}}", "unique_id": "' + devId + '_soc", ' + deviceConf + ', "json_attributes_topic": "' + STATUS_TOPIC + '/state"}'
 client.publish(STATE_TOPIC +'_soc/config', socHaConf, 0, True)
 voltageHaConf = '{"device_class": "voltage", "name": "Battery Voltage", "state_topic": "' + STATE_TOPIC +'/state", "unit_of_measurement": "V", "value_template": "{{ value_json.voltage}}", "unique_id": "' + devId + '_voltage", ' + deviceConf + '}'
 client.publish(STATE_TOPIC + '_voltage/config', voltageHaConf, 0, True)
-currentHaConf = '{"device_class": "current", "name": "Battery Current", "state_topic": "' + STATE_TOPIC +'/state", "unit_of_measurement": "A", "value_template": "{{ value_json.current}}", "unique_id": "' + devId + '_current", ' + deviceConf + '}' 
+currentHaConf = '{"device_class": "current", "name": "Battery Current", "state_topic": "' + STATE_TOPIC +'/state", "unit_of_measurement": "A", "value_template": "{{ value_json.current}}", "unique_id": "' + devId + '_current", ' + deviceConf + '}'
 client.publish(STATE_TOPIC + '_current/config', currentHaConf, 0, True)
 
 CELLS_TOPIC = STATE_TOPIC + '_balance'
-cellsHaConf = '{"device_class": "voltage", "name": "Battery Cell Balance", "state_topic": "' + CELLS_TOPIC + '/state", "unit_of_measurement": "V", "value_template": "{{ value_json.diff}}", "json_attributes_topic": "' + CELLS_TOPIC + '/state", "unique_id": "' + devId + '_balance", ' + deviceConf + '}' 
+cellsHaConf = '{"device_class": "voltage", "name": "Battery Cell Balance", "state_topic": "' + CELLS_TOPIC + '/state", "unit_of_measurement": "V", "value_template": "{{ value_json.diff}}", "json_attributes_topic": "' + CELLS_TOPIC + '/state", "unique_id": "' + devId + '_balance", ' + deviceConf + '}'
 client.publish(CELLS_TOPIC + '/config', cellsHaConf, 0, True)
 
 TEMP_TOPIC = STATE_TOPIC + '_temp'
@@ -43,6 +43,10 @@ client.publish(TEMP_TOPIC + '/config', tempHaConf, 0, True)
 MOS_TOPIC = STATE_TOPIC + '_mos'
 mosHaConf = '{"name": "MOS status", "state_topic": "' + MOS_TOPIC + '/state", "value_template": "{{ value_json.value}}", "unique_id": "' + devId + '_mos", ' + deviceConf + ', "json_attributes_topic": "' + MOS_TOPIC + '/state"}'
 client.publish(MOS_TOPIC + '/config', mosHaConf, 0, True)
+
+CHARGE_STATUS_TOPIC = STATE_TOPIC + '_charge_status'
+chargeStatusHaConf = '{"device_class": "enum", "name": "Battery Charging Status", "state_topic": "' + CHARGE_STATUS_TOPIC + '/state", "value_template": "{{ value_json.status }}", "options": ["idle", "charging", "discharging"], "unique_id": "' + devId + '_charge_status", ' + deviceConf + '}'
+client.publish(CHARGE_STATUS_TOPIC + '/config', chargeStatusHaConf, 0, True)
 
 def cmd(command):
     res = []
@@ -184,6 +188,33 @@ def get_battery_mos_status():
     # print(json)
     publish(MOS_TOPIC +'/state', json)
 
+def get_battery_mos_status():
+    res = cmd(b'\xa5\x40\x93\x08\x00\x00\x00\x00\x00\x00\x00\x00\x80')
+    if len(res) < 1:
+        print('Empty response get_battery_mos_status')
+        return
+    buffer = res[0]
+    valueByte = int.from_bytes(buffer[4:5], byteorder='big', signed=False)
+    value = 'discharging' if valueByte == 2 else ('charging' if valueByte == 1 else 'idle')
+    chargeMOS = int.from_bytes(buffer[5:6], byteorder='big', signed=False)
+    dischargeMOS = int.from_bytes(buffer[6:7], byteorder='big', signed=False)
+    BMSLife = int.from_bytes(buffer[7:8], byteorder='big', signed=False)
+    residualCapacity = int.from_bytes(buffer[8:12], byteorder='big', signed=False)
+
+    json = '{'
+    json += '"value":"' + value + '",'
+    json += '"chargingMOS":' + str(chargeMOS) + ','
+    json += '"dischargingMOS":' + str(dischargeMOS) + ','
+    json += '"BMSLife":' + str(BMSLife) + ','
+    json += '"residualCapacity":' + str(residualCapacity)
+    json += '}'
+    # print(json)
+    publish(MOS_TOPIC +'/state', json)
+
+    # Add this to publish the charging status as a separate sensor
+    chargeStatusJson = '{"status":"' + value + '"}'
+    publish(CHARGE_STATUS_TOPIC + '/state', chargeStatusJson)
+
 while True:
     get_battery_state()
     get_cell_balance(int(os.environ['CELL_COUNT']))
@@ -191,6 +222,6 @@ while True:
     get_battery_temp()
     get_battery_mos_status()
     time.sleep(1)
-    
+
 ser.close()
 print('done')
